@@ -18,45 +18,18 @@ init python:
             self.weapon = weapon
             self.to_hit = to_hit
 
-
-    def show_health_bars(player, enemies):
-        renpy.show_screen("hp_bar_person", person=player)
-        for enemy in enemies:
-            renpy.show_screen("hp_bar_enemy", enemy=enemy)
-
-    # Function to hide health bars for the player and enemies
-    def hide_health_bars(player, enemies):
-        renpy.hide_screen("hp_bar_person")
-        for enemy in enemies:
-            renpy.hide_screen("hp_bar_enemy", enemy=enemy)
-
     # Function to initiate combat
     def initiate_combat(player, enemies):
-        show_health_bars(player, enemies)
-    
         combat = CombatSystem(person=player, enemies=enemies)
         combat.fight()
 
-        if all(enemy.hp <= 0 for enemy in enemies):
-            hide_health_bars(player, enemies)
-
+        
     class CombatSystem:
         def __init__(self, person, enemies):
             self.person = person
             self.enemies = enemies
 
-        def show_hp_bar_person(self):
-            renpy.show_screen("hp_bar_person", person = self.person)
-
-        def show_hp_bar_enemy(self, enemy_index):
-            renpy.show_screen("hp_bar_enemy", enemy=self.enemies[enemy_index])
-
-        def hide_hp_bar_person(self):
-            renpy.hide_screen("hp_bar_person")
-
-        def hide_hp_bar_enemy(self, enemy_index):
-            renpy.hide_screen("hp_bar_enemy")
-
+        
         def show_vbox_screen(self):
             show_custom_screen()
 
@@ -65,33 +38,48 @@ init python:
             return enemy_list
         
         def fight(self):
-
             self.person.hp = self.person.max_hp
-            
+
             for enemy in self.enemies:
                 enemy.hp = enemy.max_hp
+
+            current_enemy_index = 0
+
+            while self.person.hp > 0 and self.enemies:
+                enemy = self.enemies[current_enemy_index]
+                if enemy.hp <= 0:
+                    renpy.say("", f"You have slain the {enemy.name}!")
+                    renpy.hide(enemy.img)
+                    self.enemies.remove(enemy)
+                    current_enemy_index %= len(self.enemies)
+                    if not self.enemies:  # Check if all enemies are defeated
+                        break
+                    enemy = self.enemies[current_enemy_index]
+
                 renpy.show(enemy.img)
-        
-            while self.person.hp > 0 and any(enemy.hp > 0 for enemy in self.enemies):
-                for enemy in self.enemies:
-                    if enemy.hp <= 0:
-                        continue # This skips defeeated enemies
+
                 #Player's turn
-                result = renpy.display_menu([("Attack", "attack")])
+                result = renpy.display_menu([("Attack", "attack")]) #todo modify this to look better. (add heavy attack?)
                 roll = DiceRoll(100)
                 if roll > self.person.to_hit:
                     renpy.say("","Your attack missed")
                 else:
                     renpy.say("",f"You strike at the {enemy.name} with your sword!")
-                    player_attack_value = round(max(DiceRoll(self.person.atk) - enemy.defense, self.person.atk*0.5))
+                    player_attack_value = round(max(DiceRoll(self.person.atk) - enemy.defense, self.person.atk*0.5)) #dmg calc
                     renpy.say("",f"You strike the {enemy.name} for {player_attack_value} damage!")
-                    enemy.hp -= player_attack_value
+                    enemy.hp -= player_attack_value #actual hp reduction
                     
 
                 if enemy.hp <= 0:
                     renpy.say("",f"You have slain the {enemy.name}!")
                     renpy.hide(enemy.img)
                     self.enemies.remove(enemy) #Remove defeated enemy
+
+                if enemy.hp <= 0: #checks if current enemy is dead, and replaces with next enemy if it is.
+                    continue
+                    current_enemy_index += 1
+                    current_enemy_index %= len(self.enemies)
+            
                     
 
                 #Enemy's turn
@@ -101,11 +89,13 @@ init python:
                     renpy.say("",f"The {enemy.name} strikes at you with his {enemy.weapon}!")
                     roll = DiceRoll(100)
                     if roll < enemy.to_hit:
-                        enemy_attack_value = max(DiceRoll(enemy.atk) - self.person.defense, 1)
+                        enemy_attack_value = max(DiceRoll(enemy.atk) - self.person.defense, 1) #dmg calc
                         renpy.say("",f"The {enemy.name} hits you for {enemy_attack_value} dmg!")
-                        self.person.hp -= enemy_attack_value
+                        self.person.hp -= enemy_attack_value #actual hp reduction
+                        if self.person.hp <= 0:
+                            renpy.jump ("endGame")
                     else:
-                        renpy.say("",f"You block the attack!") 
+                        renpy.say("",f"You block the attack!")
+
+                
             
-            if all(enemy.hp <= 0 for enemy in self.enemies):
-                self.hide_hp_bar_enemy(enemy)
